@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WEATHER ARCADE - 5학년 날씨 시뮬레이터</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for Retro Arcade Look -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #040408;
+            color: #fff;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .font-pixel {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* Arcade Cabinet Frame */
+        .arcade-cabinet {
+            background: linear-gradient(145deg, #2b004a 0%, #0d001a 100%);
+            border: 10px solid #ff007f;
+            box-shadow: 0 0 35px #ff007f, inset 0 0 20px #00f0ff;
+            border-radius: 24px;
+            position: relative;
+        }
+
+        /* CRT Screen Lines Effect */
+        .crt-screen {
+            background: #060a12;
+            border: 6px solid #1f1f2e;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.9), 0 0 15px rgba(0, 240, 255, 0.4);
+            position: relative;
+            overflow: hidden;
+            border-radius: 16px;
+        }
+
+        .crt-screen::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 25;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Arcade Screen Overlay D-Pad Buttons (VERY BOTTOM-RIGHT CORNER) */
+        .overlay-dpad-btn {
+            background: rgba(255, 234, 0, 0.85);
+            color: #000;
+            font-weight: 900;
+            border: 2px solid #fff;
+            box-shadow: 0 0 8px rgba(255, 234, 0, 0.8);
+            transition: all 0.05s ease;
+            backdrop-filter: blur(2px);
+        }
+
+        .overlay-dpad-btn:active {
+            transform: scale(0.92);
+            background: rgba(255, 0, 127, 0.95);
+            color: #fff;
+        }
+
+        /* Custom Range Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: #111a2e;
+            height: 10px;
+            border-radius: 5px;
+            outline: none;
+            border: 1px solid #00f0ff;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ff007f;
+            cursor: pointer;
+            box-shadow: 0 0 10px #ff007f;
+            border: 2px solid #fff;
+        }
+
+        .neon-text-yellow { text-shadow: 0 0 5px #ffee00, 0 0 12px #ffee00; }
+        .neon-text-pink { text-shadow: 0 0 5px #ff007f, 0 0 12px #ff007f; }
+
+        /* Score Float Animation */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-35px) scale(1.3); }
+        }
+        .animate-score-popup {
+            animation: floatUp 0.8s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-2 sm:p-4">
+
+    <!-- Arcade Cabinet Frame -->
+    <div class="arcade-cabinet w-full max-w-5xl p-3 sm:p-5 my-auto">
+        
+        <!-- Header Marquee -->
+        <div class="bg-black border-4 border-yellow-400 rounded-xl p-2.5 mb-3 text-center relative overflow-hidden shadow-[0_0_20px_rgba(255,234,0,0.5)]">
+            <div class="flex justify-between items-center px-3 relative z-10">
+                <div class="flex items-center space-x-2">
+                    <span class="text-2xl animate-bounce">🟡</span>
+                    <span class="font-pixel text-[10px] text-yellow-300 hidden sm:inline">PAC-WEATHER</span>
+                </div>
+                <div>
+                    <h1 class="font-pixel text-lg sm:text-2xl text-yellow-300 tracking-wider neon-text-yellow">
+                        WEATHER ARCADE
+                    </h1>
+                    <p class="text-xs text-cyan-300 font-bold mt-0.5">
+                        [초등 5학년] 팩맨 날씨 시뮬레이터 & 유령 잡기 오락기
+                    </p>
+                </div>
+                <div class="flex space-x-2 text-xl">
+                    <span class="text-red-500 animate-pulse">👻</span>
+                    <span class="text-pink-400 animate-pulse">👻</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CRT Display Screen -->
+        <div class="crt-screen p-3 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[420px]">
+            
+            <!-- Left: Weather Simulation Canvas Display -->
+            <div class="lg:col-span-7 flex flex-col justify-between relative bg-slate-950 rounded-lg p-2.5 border border-slate-800 min-h-[350px]">
+                
+                <!-- Status Bar Header -->
+                <div class="flex justify-between items-center text-xs font-pixel text-cyan-400 border-b border-cyan-900 pb-2 z-20">
+                    <span id="display-season" class="bg-cyan-950 px-2 py-0.5 rounded border border-cyan-500">🌸 봄</span>
+                    <span id="display-weather-title" class="text-yellow-300 font-bold text-sm">☀️ 맑음</span>
+                    <span id="display-score" class="text-pink-400 text-sm neon-text-pink">SCORE: 0000</span>
+                </div>
+
+                <!-- Simulation Canvas Container -->
+                <div id="canvas-container" class="relative w-full h-72 my-2 rounded overflow-hidden border border-slate-700/60 shadow-inner flex items-center justify-center">
+                    <canvas id="weatherCanvas" class="absolute inset-0 w-full h-full"></canvas>
+
+                    <!-- Score Float Layer -->
+                    <div id="score-popup-layer" class="absolute inset-0 pointer-events-none z-30"></div>
+
+                    <!-- Water Cycle Status HUD -->
+                    <div id="water-cycle-tag" class="absolute top-2 left-2 bg-black/80 border border-yellow-400 text-yellow-300 text-[10px] px-2 py-1 rounded hidden z-20 font-bold">
+                        💧 수증기 응결/증발 진행 중!
+                    </div>
+
+                    <!-- CTRL Ghost Overflow Banner -->
+                    <div id="ctrl-overflow-tag" class="absolute top-2 left-1/2 -translate-x-1/2 bg-red-600 text-yellow-300 font-pixel text-[10px] sm:text-xs px-3 py-1 rounded-full border-2 border-yellow-300 hidden z-30 animate-bounce shadow-[0_0_15px_#ff0000]">
+                        ⚡ GHOST OVERFLOW! (CTRL HELD)
+                    </div>
+
+                    <!-- Ghost Count Badge -->
+                    <div id="ghost-status-tag" class="absolute top-2 right-2 bg-slate-900/90 border border-cyan-400 text-cyan-300 text-[10px] px-2 py-1 rounded z-20 font-pixel">
+                        👻 유령 수: <span id="ghost-count">4</span>
+                    </div>
+
+                    <!-- 🕹️ D-PAD IN CRT SCREEN (VERY BOTTOM-RIGHT CORNER) -->
+                    <div class="absolute bottom-2 right-2 z-40 bg-black/60 p-1.5 rounded-xl border border-yellow-400/80 backdrop-blur-sm shadow-xl">
+                        <div class="grid grid-cols-3 gap-1 w-28 h-28">
+                            <div></div>
+                            <button onmousedown="movePacman('up')" ontouchstart="movePacman('up')" class="overlay-dpad-btn rounded-lg text-center font-pixel text-xs flex items-center justify-center">▲</button>
+                            <div></div>
+                            <button onmousedown="movePacman('left')" ontouchstart="movePacman('left')" class="overlay-dpad-btn rounded-lg text-center font-pixel text-xs flex items-center justify-center">◀</button>
+                            <button onmousedown="movePacman('down')" ontouchstart="movePacman('down')" class="overlay-dpad-btn rounded-lg text-center font-pixel text-xs flex items-center justify-center">▼</button>
+                            <button onmousedown="movePacman('right')" ontouchstart="movePacman('right')" class="overlay-dpad-btn rounded-lg text-center font-pixel text-xs flex items-center justify-center">▶</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Science Principle Description Footer -->
+                <div class="bg-slate-900/95 border border-yellow-500/40 rounded p-2 z-20 min-h-[58px] flex items-center">
+                    <div class="text-xs text-gray-200 leading-relaxed">
+                        <span class="text-yellow-400 font-bold">[과학 원리 & 조작] </span>
+                        <span id="weather-desc">우측 하단 D-Pad 또는 WASD/방향키로 팩맨을 움직여 유령을 잡으세요! 유령을 잡거나 퀴즈를 맞히면 점수가 올라갑니다.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Science & Weather Deck Controls -->
+            <div class="lg:col-span-5 bg-slate-900/95 border border-pink-500/40 rounded-lg p-3 flex flex-col justify-between space-y-2.5">
+                <div class="text-center border-b border-pink-500/30 pb-1 flex justify-between items-center">
+                    <h2 class="font-pixel text-xs text-pink-400 neon-text-pink">WEATHER DECK</h2>
+                    <button id="sound-btn" class="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded font-bold hover:bg-yellow-300">
+                        🔊 Sound On
+                    </button>
+                </div>
+
+                <!-- Sliders -->
+                <div class="space-y-2.5 text-xs">
+                    <!-- Temperature -->
+                    <div>
+                        <div class="flex justify-between text-yellow-300 font-bold mb-1">
+                            <span>🌡️ 기온 (Temperature)</span>
+                            <span id="temp-val" class="font-pixel text-pink-400">25°C</span>
+                        </div>
+                        <input type="range" id="temp-slider" min="-10" max="40" value="25" step="1">
+                        <div class="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                            <span>-10°C (영하/눈)</span>
+                            <span>40°C (폭염/소나기)</span>
+                        </div>
+                    </div>
+
+                    <!-- Humidity -->
+                    <div>
+                        <div class="flex justify-between text-cyan-300 font-bold mb-1">
+                            <span>💧 습도 (Humidity)</span>
+                            <span id="humidity-val" class="font-pixel text-cyan-400">40%</span>
+                        </div>
+                        <input type="range" id="humidity-slider" min="0" max="100" value="40" step="5">
+                        <div class="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                            <span>0% (건조)</span>
+                            <span>100% (포화)</span>
+                        </div>
+                    </div>
+
+                    <!-- Wind Speed -->
+                    <div>
+                        <div class="flex justify-between text-purple-300 font-bold mb-1">
+                            <span>💨 바람 세기 (Wind)</span>
+                            <span id="wind-val" class="font-pixel text-purple-400">약함</span>
+                        </div>
+                        <input type="range" id="wind-slider" min="1" max="5" value="2" step="1">
+                    </div>
+
+                    <!-- Pressure Toggle -->
+                    <div>
+                        <span class="text-green-300 font-bold block mb-1">🎈 기압 (Air Pressure)</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btn-high-press" class="bg-blue-900 border border-blue-400 text-white py-1 px-2 rounded text-xs font-bold transition">
+                                🔵 고기압 (맑음)
+                            </button>
+                            <button id="btn-low-press" class="bg-slate-800 border border-slate-600 text-gray-300 py-1 px-2 rounded text-xs font-bold transition">
+                                🔴 저기압 (비/구름)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Night & Quiz Toggle -->
+                    <div class="flex items-center justify-between pt-1">
+                        <label class="flex items-center space-x-1.5 cursor-pointer">
+                            <input type="checkbox" id="night-toggle" class="form-checkbox h-4 w-4 text-purple-600 rounded">
+                            <span class="text-purple-300 font-bold text-xs">🌙 밤 (이슬/서리)</span>
+                        </label>
+                        <button id="btn-quiz" class="bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs px-2.5 py-1 rounded shadow">
+                            ❓ 과학 퀴즈
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Weather Preset Quick Buttons -->
+                <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+                    <button id="btn-preset-fog" class="bg-slate-800 hover:bg-slate-700 border border-cyan-400 text-cyan-300 py-1 rounded font-bold">🌫️ 안개</button>
+                    <button id="btn-preset-rain" class="bg-slate-800 hover:bg-slate-700 border border-blue-400 text-blue-300 py-1 rounded font-bold">🌧️ 소나기</button>
+                    <button id="btn-preset-snow" class="bg-slate-800 hover:bg-slate-700 border border-indigo-400 text-indigo-200 py-1 rounded font-bold">❄️ 함박눈</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 💡 Science Quiz Modal Overlay -->
+    <div id="quiz-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border-4 border-yellow-400 rounded-2xl max-w-md w-full p-5 shadow-[0_0_30px_rgba(255,234,0,0.6)]">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-3">
+                <h3 class="font-pixel text-xs text-yellow-300">5학년 과학 퀴즈 챌린지</h3>
+                <span class="text-gray-400 text-xs">단원: 날씨와 우리 생활</span>
+            </div>
+            
+            <p id="quiz-question" class="text-sm font-bold text-white mb-4 leading-relaxed">
+                질문이 들어갑니다...
+            </p>
+
+            <div id="quiz-options" class="space-y-2 mb-4">
+                <!-- Options populated dynamically -->
+            </div>
+
+            <!-- Explicit Feedback Area (정답/오답 명확 표시) -->
+            <div id="quiz-feedback" class="hidden p-3 rounded-lg border text-xs font-bold leading-relaxed mb-4">
+                <div id="quiz-feedback-title" class="text-base font-pixel mb-1"></div>
+                <div id="quiz-feedback-explanation" class="text-gray-200"></div>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button id="quiz-close-btn" class="bg-slate-700 text-gray-200 font-bold text-xs px-4 py-2 rounded hover:bg-slate-600">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Logic Script -->
+    <script>
+        // --- Web Audio API Chiptune Sound Effects ---
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playWaka() {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+            playGhostCatch() {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(500, this.ctx.currentTime + 0.05);
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+            playQuizResult(isCorrect) {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                if (isCorrect) {
+                    osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+                    osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.1); // E5
+                    osc.frequency.setValueAtTime(783.99, this.ctx.currentTime + 0.2); // G5
+                } else {
+                    osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(250, this.ctx.currentTime + 0.15);
+                }
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.35);
+            }
+        }
+
+        const soundFX = new SoundFX();
+
+        // Canvas Setup
+        const canvas = document.getElementById('weatherCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Weather State
+        let weatherState = {
+            temp: 25,
+            humidity: 40,
+            wind: 2,
+            pressure: 'high', // 'high' | 'low'
+            isNight: false,
+            score: 0
+        };
+
+        // Weather Dots
+        let dots = [];
+        function spawnDots() {
+            dots = [];
+            for (let i = 0; i < 15; i++) {
+                dots.push({
+                    x: Math.random() * (canvas.width - 40) + 20,
+                    y: Math.random() * (canvas.height - 40) + 20,
+                    radius: 3
+                });
+            }
+        }
+
+        // 🟡 PAC-MAN SETUP
+        const pacman = {
+            x: 100,
+            y: 150,
+            radius: 12,
+            speed: 3.5,
+            mouthAngle: 0.2,
+            mouthSpeed: 0.02,
+            dirX: 0,
+            dirY: 0,
+            angle: 0
+        };
+
+        // 👻 GHOSTS
+        let ghosts = [
+            { x: 180, y: 80, color: '#ff0000', dirX: 1, dirY: 0, speed: 1.2 },
+            { x: 220, y: 200, color: '#ffb8ff', dirX: -1, dirY: 0, speed: 1.1 },
+            { x: 80, y: 220, color: '#00ffff', dirX: 0, dirY: 1, speed: 1.0 },
+            { x: 300, y: 100, color: '#ffb852', dirX: 0, dirY: -1, speed: 1.3 }
+        ];
+
+        // Controls
+        function movePacman(dir) {
+            soundFX.init();
+            if (dir === 'up') { pacman.dirX = 0; pacman.dirY = -1; pacman.angle = -Math.PI / 2; }
+            if (dir === 'down') { pacman.dirX = 0; pacman.dirY = 1; pacman.angle = Math.PI / 2; }
+            if (dir === 'left') { pacman.dirX = -1; pacman.dirY = 0; pacman.angle = Math.PI; }
+            if (dir === 'right') { pacman.dirX = 1; pacman.dirY = 0; pacman.angle = 0; }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowUp', 'w', 'W'].includes(e.key)) movePacman('up');
+            if (['ArrowDown', 's', 'S'].includes(e.key)) movePacman('down');
+            if (['ArrowLeft', 'a', 'A'].includes(e.key)) movePacman('left');
+            if (['ArrowRight', 'd', 'D'].includes(e.key)) movePacman('right');
+        });
+
+        // Floating Score Effect
+        function showScorePopup(x, y, text) {
+            const popup = document.createElement('div');
+            popup.className = 'absolute font-pixel text-yellow-300 text-xs font-bold animate-score-popup pointer-events-none z-30';
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+            popup.innerText = text;
+            document.getElementById('score-popup-layer').appendChild(popup);
+            setTimeout(() => popup.remove(), 800);
+        }
+
+        // Science Quiz Questions (5th Grade)
+        const quizzes = [
+            {
+                q: "공기 중에 수증기가 포함될 수 있는 양은 온도가 높을수록 어떻게 될까요?",
+                options: ["많아진다", "적어진다", "변함없다", "0이 된다"],
+                answer: 0,
+                exp: "온도가 높아질수록 공기가 포화 수증기량이 커져 수증기를 더 많이 품을 수 있습니다."
+            },
+            {
+                q: "바람은 공기가 어느 기압에서 어느 기압으로 불어갈까요?",
+                options: ["저기압 ➡️ 고기압", "고기압 ➡️ 저기압", "기압과 상관없이 무작위", "동쪽에서만 분다"],
+                answer: 1,
+                exp: "바람은 공기가 빽빽한 고기압에서 공기가 희박한 저기압 쪽으로 불어갑니다."
+            },
+            {
+                q: "수증기가 차가운 차창이나 풀잎에 닿아 물방울로 변하는 현상은?",
+                options: ["증발", "응결", "융해", "승화"],
+                answer: 1,
+                exp: "기체인 수증기가 액체인 물로 변하는 현상을 '응결'이라고 합니다."
+            },
+            {
+                q: "낮에 바닷가에서 바다에서 육지 쪽으로 부는 바람은 무엇일까요?",
+                options: ["육풍", "해풍", "계절풍", "태풍"],
+                answer: 1,
+                exp: "낮에는 육지가 바다보다 빨리 데워져 육지의 공기가 올라가므로, 바다에서 육지로 해풍이 붑니다."
+            }
+        ];
+
+        let currentQuizIndex = 0;
+
+        function openQuiz() {
+            const quiz = quizzes[Math.floor(Math.random() * quizzes.length)];
+            currentQuizIndex = quizzes.indexOf(quiz);
+            document.getElementById('quiz-question').innerText = `Q. ${quiz.q}`;
+            const optsContainer = document.getElementById('quiz-options');
+            optsContainer.innerHTML = '';
+            
+            document.getElementById('quiz-feedback').classList.add('hidden');
+
+            quiz.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold p-2.5 rounded text-xs transition";
+                btn.innerText = `${idx + 1}. ${opt}`;
+                btn.onclick = () => checkQuiz(idx);
+                optsContainer.appendChild(btn);
+            });
+
+            document.getElementById('quiz-modal').classList.remove('hidden');
+            document.getElementById('quiz-modal').classList.add('flex');
+        }
+
+        function checkQuiz(selected) {
+            const quiz = quizzes[currentQuizIndex];
+            const feedbackBox = document.getElementById('quiz-feedback');
+            const feedbackTitle = document.getElementById('quiz-feedback-title');
+            const feedbackExp = document.getElementById('quiz-feedback-explanation');
+
+            feedbackBox.classList.remove('hidden');
+
+            if (selected === quiz.answer) {
+                // 正答 (정답)
+                soundFX.playQuizResult(true);
+                weatherState.score += 300;
+                updateScoreDisplay();
+
+                feedbackBox.className = "p-3 rounded-lg border text-xs font-bold leading-relaxed mb-4 bg-green-950/80 border-green-500 text-green-300";
+                feedbackTitle.innerText = "⭕ 정답입니다! (+300 PTS)";
+                feedbackExp.innerText = quiz.exp;
+            } else {
+                // 誤答 (오답)
+                soundFX.playQuizResult(false);
+
+                feedbackBox.className = "p-3 rounded-lg border text-xs font-bold leading-relaxed mb-4 bg-red-950/80 border-red-500 text-red-300";
+                feedbackTitle.innerText = "❌ 오답입니다!";
+                feedbackExp.innerText = `정답은 "${quiz.options[quiz.answer]}" 입니다. ${quiz.exp}`;
+            }
+        }
+
+        document.getElementById('btn-quiz').onclick = openQuiz;
+        document.getElementById('quiz-close-btn').onclick = () => {
+            document.getElementById('quiz-modal').classList.add('hidden');
+            document.getElementById('quiz-modal').classList.remove('flex');
+        };
+
+        function updateScoreDisplay() {
+            document.getElementById('display-score').innerText = `SCORE: ${String(weatherState.score).padStart(4, '0')}`;
+        }
+
+        // --- Game Animation Loop ---
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Weather Background Effects
+            if (weatherState.isNight) {
+                ctx.fillStyle = "#02040a";
+            } else if (weatherState.pressure === 'low') {
+                ctx.fillStyle = "#1e293b";
+            } else {
+                ctx.fillStyle = "#0b1329";
+            }
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Fog effect
+            if (weatherState.humidity >= 80) {
+                ctx.fillStyle = `rgba(200, 225, 255, ${weatherState.humidity / 400})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 2. Draw Weather Dots
+            if (dots.length === 0) spawnDots();
+            ctx.fillStyle = "#ffee00";
+            dots.forEach((dot, index) => {
+                ctx.beginPath();
+                ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eat Dot Collision
+                const dist = Math.hypot(pacman.x - dot.x, pacman.y - dot.y);
+                if (dist < pacman.radius + dot.radius) {
+                    dots.splice(index, 1);
+                    weatherState.score += 10;
+                    updateScoreDisplay();
+                    soundFX.playWaka();
+                }
+            });
+
+            // 3. Move & Draw Pacman
+            pacman.x += pacman.dirX * pacman.speed;
+            pacman.y += pacman.dirY * pacman.speed;
+
+            // Screen Edge Boundary Wrapping
+            if (pacman.x < 0) pacman.x = canvas.width;
+            if (pacman.x > canvas.width) pacman.x = 0;
+            if (pacman.y < 0) pacman.y = canvas.height;
+            if (pacman.y > canvas.height) pacman.y = 0;
+
+            // Mouth Animation
+            pacman.mouthAngle += pacman.mouthSpeed;
+            if (pacman.mouthAngle > 0.45 || pacman.mouthAngle < 0.05) pacman.mouthSpeed = -pacman.mouthSpeed;
+
+            ctx.save();
+            ctx.translate(pacman.x, pacman.y);
+            ctx.rotate(pacman.angle);
+            ctx.beginPath();
+            ctx.arc(0, 0, pacman.radius, pacman.mouthAngle, Math.PI * 2 - pacman.mouthAngle);
+            ctx.lineTo(0, 0);
+            ctx.fillStyle = '#ffff00';
+            ctx.fill();
+            ctx.restore();
+
+            // 4. Move & Draw Ghosts
+            document.getElementById('ghost-count').innerText = ghosts.length;
+            ghosts.forEach((ghost, idx) => {
+                ghost.x += ghost.dirX * ghost.speed;
+                ghost.y += ghost.dirY * ghost.speed;
+
+                if (ghost.x < 15 || ghost.x > canvas.width - 15) ghost.dirX *= -1;
+                if (ghost.y < 15 || ghost.y > canvas.height - 15) ghost.dirY *= -1;
+
+                // Draw Ghost Body
+                ctx.fillStyle = ghost.color;
+                ctx.beginPath();
+                ctx.arc(ghost.x, ghost.y - 2, 10, Math.PI, 0, false);
+                ctx.lineTo(ghost.x + 10, ghost.y + 8);
+                ctx.lineTo(ghost.x - 10, ghost.y + 8);
+                ctx.closePath();
+                ctx.fill();
+
+                // Ghost Eyes
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(ghost.x - 3, ghost.y - 2, 3, 0, Math.PI * 2);
+                ctx.arc(ghost.x + 3, ghost.y - 2, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(ghost.x - 2, ghost.y - 2, 1.5, 0, Math.PI * 2);
+                ctx.arc(ghost.x + 2, ghost.y - 2, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Pacman Catch Ghost Collision
+                const gDist = Math.hypot(pacman.x - ghost.x, pacman.y - ghost.y);
+                if (gDist < pacman.radius + 10) {
+                    // Catch Ghost!
+                    soundFX.playGhostCatch();
+                    showScorePopup(ghost.x, ghost.y, "+100 PTS!");
+                    weatherState.score += 100;
+                    updateScoreDisplay();
+
+                    // Respawn Ghost
+                    ghost.x = Math.random() * (canvas.width - 40) + 20;
+                    ghost.y = Math.random() * (canvas.height - 40) + 20;
+                }
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- Weather Control UI Handlers ---
+        const tempSlider = document.getElementById('temp-slider');
+        const tempVal = document.getElementById('temp-val');
+        const humiditySlider = document.getElementById('humidity-slider');
+        const humidityVal = document.getElementById('humidity-val');
+        const windSlider = document.getElementById('wind-slider');
+        const windVal = document.getElementById('wind-val');
+
+        tempSlider.oninput = (e) => {
+            weatherState.temp = parseInt(e.target.value);
+            tempVal.innerText = `${weatherState.temp}°C`;
+            updateWeatherDesc();
+        };
+
+        humiditySlider.oninput = (e) => {
+            weatherState.humidity = parseInt(e.target.value);
+            humidityVal.innerText = `${weatherState.humidity}%`;
+            updateWeatherDesc();
+        };
+
+        windSlider.oninput = (e) => {
+            weatherState.wind = parseInt(e.target.value);
+            const levels = ['매우 약함', '약함', '보통', '강함', '태풍급'];
+            windVal.innerText = levels[weatherState.wind - 1];
+        };
+
+        document.getElementById('btn-high-press').onclick = () => {
+            weatherState.pressure = 'high';
+            document.getElementById('display-weather-title').innerText = '☀️ 맑음 (고기압)';
+            document.getElementById('btn-high-press').className = "bg-blue-600 border border-blue-400 text-white py-1 px-2 rounded text-xs font-bold";
+            document.getElementById('btn-low-press').className = "bg-slate-800 border border-slate-600 text-gray-300 py-1 px-2 rounded text-xs font-bold";
+            updateWeatherDesc();
+        };
+
+        document.getElementById('btn-low-press').onclick = () => {
+            weatherState.pressure = 'low';
+            document.getElementById('display-weather-title').innerText = '🌧️ 구름/비 (저기압)';
+            document.getElementById('btn-low-press').className = "bg-red-600 border border-red-400 text-white py-1 px-2 rounded text-xs font-bold";
+            document.getElementById('btn-high-press').className = "bg-slate-800 border border-slate-600 text-gray-300 py-1 px-2 rounded text-xs font-bold";
+            updateWeatherDesc();
+        };
+
+        document.getElementById('night-toggle').onchange = (e) => {
+            weatherState.isNight = e.target.checked;
+            updateWeatherDesc();
+        };
+
+        // Presets
+        document.getElementById('btn-preset-fog').onclick = () => {
+            humiditySlider.value = 90;
+            humiditySlider.dispatchEvent(new Event('input'));
+        };
+        document.getElementById('btn-preset-rain').onclick = () => {
+            tempSlider.value = 20;
+            tempSlider.dispatchEvent(new Event('input'));
+            humiditySlider.value = 95;
+            humiditySlider.dispatchEvent(new Event('input'));
+            document.getElementById('btn-low-press').click();
+        };
+        document.getElementById('btn-preset-snow').onclick = () => {
+            tempSlider.value = -5;
+            tempSlider.dispatchEvent(new Event('input'));
+            humiditySlider.value = 90;
+            humiditySlider.dispatchEvent(new Event('input'));
+            document.getElementById('btn-low-press').click();
+        };
+
+        function updateWeatherDesc() {
+            const desc = document.getElementById('weather-desc');
+            const waterTag = document.getElementById('water-cycle-tag');
+
+            if (weatherState.humidity >= 80) {
+                waterTag.classList.remove('hidden');
+                waterTag.innerText = "💧 공기 중 수증기가 가득 차 응결이 일어납니다!";
+            } else {
+                waterTag.classList.add('hidden');
+            }
+
+            if (weatherState.temp <= 0 && weatherState.humidity >= 70) {
+                desc.innerText = "영하의 날씨에 수증기가 얼어 얼음 결정(눈/서리)이 됩니다. 고기압/저기압에 따라 함박눈이 올 수 있습니다!";
+            } else if (weatherState.humidity >= 85) {
+                desc.innerText = "습도가 매우 높습니다! 수증기가 먼지 등에 응결하여 안개나 구름이 만들어지기 쉽습니다.";
+            } else {
+                desc.innerText = "우측 하단 D-Pad 또는 WASD/방향키로 팩맨을 움직여 유령을 잡으세요! 유령을 잡거나 퀴즈를 맞히면 점수가 올라갑니다.";
+            }
+        }
+
+        // Sound Button Toggle
+        document.getElementById('sound-btn').onclick = (e) => {
+            soundFX.enabled = !soundFX.enabled;
+            e.target.innerText = soundFX.enabled ? "🔊 Sound On" : "🔇 Sound Off";
+        };
+
+        // Start Loop
+        window.onload = () => {
+            spawnDots();
+            animate();
+        };
+    </script>
+</body>
+</html>
